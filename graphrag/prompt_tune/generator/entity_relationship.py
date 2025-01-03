@@ -17,6 +17,24 @@ from graphrag.prompt_tune.prompt.entity_relationship import (
 MAX_EXAMPLES = 5
 
 
+def convert_entity_schema(content: str) -> str:
+    entities = json.loads(content)
+    items = []
+    tuple_delimiter = "{tuple_delimiter}"
+    record_delimiter = "{record_delimiter}"
+    completion_delimiter = "{completion_delimiter}"
+    for idx, entity in enumerate(entities):
+        if 'relationship' in entity:
+            items.append(f'("relationship"{tuple_delimiter}{entity['source']}{tuple_delimiter}{entity['target']}{tuple_delimiter}{entity['relationship']}{tuple_delimiter}{entity['relationship_strength']})')
+        else:
+            items.append(f'("entity"{tuple_delimiter}{entity['name']}{tuple_delimiter}{entity['type']}{tuple_delimiter}{entity['description']})')
+        if idx == len(entities) - 1:
+            items.append(completion_delimiter)
+        else:
+            items.append(record_delimiter)
+    return "\n".join(items)
+
+
 async def generate_entity_relationship_examples(
     llm: ChatLLM,
     persona: str,
@@ -30,6 +48,7 @@ async def generate_entity_relationship_examples(
     Will return entity/relationships examples as either JSON or in tuple_delimiter format depending
     on the json_mode parameter.
     """
+    json_mode = True
     docs_list = [docs] if isinstance(docs, str) else docs
     history = [{"content": persona, "role": "system"}]
 
@@ -62,7 +81,4 @@ async def generate_entity_relationship_examples(
 
     responses = await asyncio.gather(*tasks)
 
-    return [
-        json.dumps(response.json or "") if json_mode else str(response.output.content)
-        for response in responses
-    ]
+    return [convert_entity_schema(response.output.content) for response in responses]
